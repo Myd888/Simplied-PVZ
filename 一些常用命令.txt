@@ -1,1 +1,0 @@
-pyinstaller --onefile --windowed --icon=game_icon.ico --name="植物大战僵尸" main.py
