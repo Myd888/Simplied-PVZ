@@ -110,19 +110,29 @@ class Zombie(pygame.sprite.Sprite):
         self.rect = self.image.get_rect(center=pos)
         self.max_hp = ZOMBIE_MAX_HP
         self.hp = self.max_hp
-        self.speed = ZOMBIE_SPEED
-
+        # ========== 僵尸移动速度设置区域 ==========
+        # 修改下面的 ZOMBIE_SPEED 值来调整僵尸移动速度
+        # 值越大，僵尸移动越快（建议范围：0.3 - 2.0）
+        self.speed = 1.0
+        # ==========================================
+        
         # 攻击相关（简单化：每帧只要碰上就扣一点血）
         self.attack_damage_per_second = 20   # 每秒对植物造成伤害
         self.attack_damage_per_frame = 0     # 根据 FPS 在外部计算或这里预设也行
+        self.is_attacking = False  # 标记僵尸是否正在攻击植物
 
     def update(self, dt):
         """
         僵尸每帧向左移动
         dt: 每帧毫秒，用于按时间缩放伤害（更合理）
         """
-        # 水平向左移动
-        self.rect.x -= self.speed
+        # ========== 僵尸移动逻辑 ==========
+        # 只有当僵尸没有在攻击植物时，才继续移动
+        # 如果需要在攻击时也移动，可以删除下面的 if 判断
+        if not self.is_attacking:
+            # 水平向左移动（速度由 self.speed 控制，可在初始化时或主循环中修改）
+            self.rect.x -= self.speed
+        # ==================================
 
         # 记录本帧的伤害量（方便在主循环中对植物扣血）
         seconds = dt / 1000.0

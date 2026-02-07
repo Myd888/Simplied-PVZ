@@ -27,6 +27,24 @@ from settings import (
 from grid import Grid
 from entities import Plant, Zombie
 
+def create_shovel_icon():
+    """
+    创建铲子图标
+    返回一个 Surface 对象
+    """
+    icon_size = 50
+    icon = pygame.Surface((icon_size, icon_size), pygame.SRCALPHA)
+    
+    # 绘制铲子（简单的几何图形）
+    # 铲子把手（棕色）
+    pygame.draw.rect(icon, (139, 69, 19), (20, 5, 8, 25))
+    # 铲子头部（灰色金属）
+    pygame.draw.ellipse(icon, (128, 128, 128), (10, 25, 30, 20))
+    # 铲子边缘高光
+    pygame.draw.ellipse(icon, (180, 180, 180), (12, 27, 26, 16), 2)
+    
+    return icon
+
 def draw_health_bar(surface, entity):
     """
     在实体头顶绘制血量条
@@ -35,7 +53,12 @@ def draw_health_bar(surface, entity):
     # 血量条参数
     bar_width = 50
     bar_height = 6
-    offset_y = -35  # 在实体头顶的偏移量
+    # 根据实体类型设置不同的偏移量
+    # 使用 type(entity).__name__ 来检查类型，避免循环导入
+    if type(entity).__name__ == 'Plant':
+        offset_y = -17.5  # 植物血条高度（原来的一半）
+    else:
+        offset_y = -35  # 僵尸血条高度（保持原样）
     
     # 计算血量百分比
     hp_ratio = max(0, min(1, entity.hp / entity.max_hp))
@@ -97,6 +120,14 @@ def main():
             font = pygame.font.Font("C:/Windows/Fonts/simhei.ttf", 24)  # 黑体
         except:
             font = pygame.font.SysFont("simhei", 24)  # 备用方案
+    
+    # ========== 铲子功能相关变量 ==========
+    shovel_icon = create_shovel_icon()
+    shovel_rect = shovel_icon.get_rect()
+    shovel_rect.topright = (SCREEN_WIDTH - 10, 10)  # 右上角位置
+    shovel_selected = False  # 铲子是否被选中
+    shovel_alpha = 255  # 铲子图标透明度（255 = 完全不透明）
+    # =====================================
 
     # 主循环
     running = True
@@ -109,20 +140,56 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
 
-            # 鼠标点击种植植物
+            # 鼠标点击处理
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 # 左键点击
                 if not game_over:
                     mouse_pos = pygame.mouse.get_pos()
-                    cell_indices = grid.get_cell_indices_from_pos(mouse_pos)
-                    if cell_indices is not None:
-                        row, col = cell_indices
-                        # 如果当前格子没有植物，则种一棵
-                        if plant_grid[row][col] is None:
-                            cell_center = grid.get_cell_center(row, col)
-                            new_plant = Plant(cell_center)
-                            plants.add(new_plant)
-                            plant_grid[row][col] = new_plant
+                    
+                    # ========== 铲子功能处理 ==========
+                    # 如果铲子已选中，优先检查是否点击了植物
+                    if shovel_selected:
+                        # 检查点击位置是否有植物（扩大检测范围，确保能检测到）
+                        clicked_plant = None
+                        for plant in plants:
+                            # 扩大检测范围：不仅检测rect中心，还检测整个rect区域
+                            # 使用更大的碰撞检测区域，确保点击植物时能检测到
+                            expanded_rect = plant.rect.inflate(10, 10)  # 扩大10像素
+                            if expanded_rect.collidepoint(mouse_pos):
+                                clicked_plant = plant
+                                break
+                        
+                        if clicked_plant:
+                            # 移除植物
+                            clicked_plant.kill()
+                            # 清理 plant_grid
+                            for row in range(len(plant_grid)):
+                                for col in range(len(plant_grid[row])):
+                                    if plant_grid[row][col] == clicked_plant:
+                                        plant_grid[row][col] = None
+                            # 取消铲子选中状态
+                            shovel_selected = False
+                            shovel_alpha = 255
+                    # 如果铲子未选中，检查是否点击了铲子图标或种植植物
+                    else:
+                        # 检查是否点击了铲子图标（只在未选中时检测，避免选中后跟随鼠标导致的冲突）
+                        # 使用固定的右上角位置检测
+                        fixed_shovel_rect = pygame.Rect(SCREEN_WIDTH - 60, 10, 50, 50)
+                        if fixed_shovel_rect.collidepoint(mouse_pos):
+                            shovel_selected = True
+                            shovel_alpha = 128  # 选中时降低透明度（半透明）
+                        else:
+                            # 正常种植植物
+                            cell_indices = grid.get_cell_indices_from_pos(mouse_pos)
+                            if cell_indices is not None:
+                                row, col = cell_indices
+                                # 如果当前格子没有植物，则种一棵
+                                if plant_grid[row][col] is None:
+                                    cell_center = grid.get_cell_center(row, col)
+                                    new_plant = Plant(cell_center)
+                                    plants.add(new_plant)
+                                    plant_grid[row][col] = new_plant
+                    # =====================================
 
         # 2. 游戏逻辑更新（若已游戏结束，则不再更新实体，只显示结束文字）
         if not game_over:
@@ -169,7 +236,12 @@ def main():
                     # print(f"子弹命中僵尸！僵尸剩余血量: {zombie.hp}")
 
             # 2.5 僵尸与植物碰撞检测
-            # 这里不使用 groupcollide，直接遍历简单处理
+            # ========== 僵尸移动和碰撞处理逻辑 ==========
+            # 先重置所有僵尸的攻击状态
+            for zombie in zombies:
+                zombie.is_attacking = False
+            
+            # 然后检测碰撞并更新状态
             for zombie in zombies:
                 # 如果僵尸到达屏幕左侧（突破防线），判定游戏结束
                 if zombie.rect.left <= 0:
@@ -179,12 +251,14 @@ def main():
                 # 僵尸与所有植物的碰撞检测
                 for plant in plants:
                     if zombie.rect.colliderect(plant.rect):
+                        # 标记僵尸正在攻击植物（这样僵尸会停止移动）
+                        zombie.is_attacking = True
                         # 僵尸在这一帧对植物造成伤害
                         plant.take_damage(zombie.attack_damage_per_frame)
                         # 碰撞时打印信息（调试用，可选）
                         # print(f"僵尸攻击植物！植物剩余血量: {plant.hp}")
-                        # 僵尸碰到植物后停止移动（可选，更符合原游戏）
-                        break
+                        break  # 一个僵尸只攻击一个植物
+            # ==========================================
 
             # 2.6 维护 plant_grid：如果植物死亡，则清理对应格子
             for row in range(len(plant_grid)):
@@ -217,6 +291,21 @@ def main():
             BLACK,
         )
         screen.blit(text_surface, (50, 10))
+        
+        # 3.4 绘制铲子图标
+        # ========== 铲子图标绘制 ==========
+        if shovel_selected:
+            # 如果铲子被选中，跟随鼠标
+            mouse_pos = pygame.mouse.get_pos()
+            shovel_rect.center = mouse_pos
+        else:
+            # 如果未选中，固定在右上角
+            shovel_rect.topright = (SCREEN_WIDTH - 10, 10)
+        
+        # 设置透明度并绘制
+        shovel_icon.set_alpha(shovel_alpha)
+        screen.blit(shovel_icon, shovel_rect)
+        # =====================================
 
         if game_over:
             over_surface = font.render(
