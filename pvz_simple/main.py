@@ -27,6 +27,19 @@ from settings import (
 from grid import Grid
 from entities import Plant, Zombie
 
+def confirm_quit():
+    """
+    显示退出确认窗口
+    返回 True 表示确认退出，False 表示取消
+    """
+    try:
+        import tkinter.messagebox as msgbox
+        result = msgbox.askyesno("退出游戏", "确定要退出游戏吗？")
+        return result
+    except:
+        # 如果 tkinter 不可用，直接返回 True
+        return True
+
 def create_shovel_icon():
     """
     创建铲子图标
@@ -36,8 +49,8 @@ def create_shovel_icon():
     icon = pygame.Surface((icon_size, icon_size), pygame.SRCALPHA)
     
     # 绘制铲子（简单的几何图形）
-    # 铲子把手（棕色）
-    pygame.draw.rect(icon, (139, 69, 19), (20, 5, 8, 25))
+    # 铲子把手（比棕框稍淡的棕色）
+    pygame.draw.rect(icon, (174, 104, 54), (20, 5, 8, 25))
     # 铲子头部（灰色金属）
     pygame.draw.ellipse(icon, (128, 128, 128), (10, 25, 30, 20))
     # 铲子边缘高光
@@ -58,7 +71,7 @@ def draw_health_bar(surface, entity):
     if type(entity).__name__ == 'Plant':
         offset_y = -17.5  # 植物血条高度（原来的一半）
     else:
-        offset_y = -35  # 僵尸血条高度（保持原样）
+        offset_y = -17.5  # 僵尸血条高度（half）
     
     # 计算血量百分比
     hp_ratio = max(0, min(1, entity.hp / entity.max_hp))
@@ -127,6 +140,17 @@ def main():
     shovel_rect.topright = (SCREEN_WIDTH - 10, 10)  # 右上角位置
     shovel_selected = False  # 铲子是否被选中
     shovel_alpha = 255  # 铲子图标透明度（255 = 完全不透明）
+    # 铲子下层棕色框（用于取消选中）- 固定在右上角，不随鼠标移动
+    shovel_bg_rect = pygame.Rect(SCREEN_WIDTH - 60, 10, 50, 50)
+    shovel_bg_color = (139, 69, 19)  # 棕色
+    # 右上角固定位置的铲子图标（选中时显示半透明）
+    fixed_shovel_rect = pygame.Rect(SCREEN_WIDTH - 60, 10, 50, 50)
+    # =====================================
+    
+    # ========== 游戏控制相关变量 ==========
+    game_paused = False  # 游戏是否暂停
+    pause_button_rect = pygame.Rect(SCREEN_WIDTH - 180, SCREEN_HEIGHT - 50, 80, 40)  # 暂停按钮（右下角）
+    quit_button_rect = pygame.Rect(SCREEN_WIDTH - 90, SCREEN_HEIGHT - 50, 80, 40)  # 退出按钮（右下角）
     # =====================================
 
     # 主循环
@@ -140,41 +164,67 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
 
+            # ========== 键盘快捷键处理 ==========
+            if event.type == pygame.KEYDOWN:
+                # 空格键暂停/继续游戏
+                if event.key == pygame.K_SPACE:
+                    if not game_over:
+                        game_paused = not game_paused
+                # Q键退出游戏（弹出确认窗口）
+                elif event.key == pygame.K_q:
+                    if confirm_quit():
+                        running = False
+            # =====================================
+
             # 鼠标点击处理
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 # 左键点击
                 if not game_over:
                     mouse_pos = pygame.mouse.get_pos()
                     
+                    # ========== 游戏控制按钮处理 ==========
+                    # 检查是否点击了暂停按钮
+                    if pause_button_rect.collidepoint(mouse_pos):
+                        if not game_over:
+                            game_paused = not game_paused
+                    # 检查是否点击了退出按钮
+                    elif quit_button_rect.collidepoint(mouse_pos):
+                        if confirm_quit():
+                            running = False
+                    # =====================================
+                    
                     # ========== 铲子功能处理 ==========
-                    # 如果铲子已选中，优先检查是否点击了植物
+                    # 如果铲子已选中，优先检查是否点击了植物或棕色框
                     if shovel_selected:
-                        # 检查点击位置是否有植物（扩大检测范围，确保能检测到）
-                        clicked_plant = None
-                        for plant in plants:
-                            # 扩大检测范围：不仅检测rect中心，还检测整个rect区域
-                            # 使用更大的碰撞检测区域，确保点击植物时能检测到
-                            expanded_rect = plant.rect.inflate(10, 10)  # 扩大10像素
-                            if expanded_rect.collidepoint(mouse_pos):
-                                clicked_plant = plant
-                                break
-                        
-                        if clicked_plant:
-                            # 移除植物
-                            clicked_plant.kill()
-                            # 清理 plant_grid
-                            for row in range(len(plant_grid)):
-                                for col in range(len(plant_grid[row])):
-                                    if plant_grid[row][col] == clicked_plant:
-                                        plant_grid[row][col] = None
-                            # 取消铲子选中状态
+                        # 检查是否点击了棕色框（取消选中）- 棕色框固定在右上角
+                        if shovel_bg_rect.collidepoint(mouse_pos):
                             shovel_selected = False
                             shovel_alpha = 255
+                        else:
+                            # 检查点击位置是否有植物（扩大检测范围，确保能检测到）
+                            clicked_plant = None
+                            for plant in plants:
+                                # 扩大检测范围：不仅检测rect中心，还检测整个rect区域
+                                # 使用更大的碰撞检测区域，确保点击植物时能检测到
+                                expanded_rect = plant.rect.inflate(10, 10)  # 扩大10像素
+                                if expanded_rect.collidepoint(mouse_pos):
+                                    clicked_plant = plant
+                                    break
+                            
+                            if clicked_plant:
+                                # 移除植物
+                                clicked_plant.kill()
+                                # 清理 plant_grid
+                                for row in range(len(plant_grid)):
+                                    for col in range(len(plant_grid[row])):
+                                        if plant_grid[row][col] == clicked_plant:
+                                            plant_grid[row][col] = None
+                                # 取消铲子选中状态
+                                shovel_selected = False
+                                shovel_alpha = 255
                     # 如果铲子未选中，检查是否点击了铲子图标或种植植物
                     else:
-                        # 检查是否点击了铲子图标（只在未选中时检测，避免选中后跟随鼠标导致的冲突）
-                        # 使用固定的右上角位置检测
-                        fixed_shovel_rect = pygame.Rect(SCREEN_WIDTH - 60, 10, 50, 50)
+                        # 检查是否点击了铲子图标（使用固定的右上角位置检测）
                         if fixed_shovel_rect.collidepoint(mouse_pos):
                             shovel_selected = True
                             shovel_alpha = 128  # 选中时降低透明度（半透明）
@@ -191,8 +241,8 @@ def main():
                                     plant_grid[row][col] = new_plant
                     # =====================================
 
-        # 2. 游戏逻辑更新（若已游戏结束，则不再更新实体，只显示结束文字）
-        if not game_over:
+        # 2. 游戏逻辑更新（若已游戏结束或暂停，则不再更新实体）
+        if not game_over and not game_paused:
             current_time = pygame.time.get_ticks()
 
             # 2.1 生成僵尸（根据时间间隔）
@@ -294,18 +344,57 @@ def main():
         
         # 3.4 绘制铲子图标
         # ========== 铲子图标绘制 ==========
+        # 棕色背景框始终固定在右上角（最底层）
+        pygame.draw.rect(screen, shovel_bg_color, shovel_bg_rect)
+        pygame.draw.rect(screen, BLACK, shovel_bg_rect, 2)  # 边框
+        
         if shovel_selected:
-            # 如果铲子被选中，跟随鼠标
+            # 如果铲子被选中，跟随鼠标的铲子图标
             mouse_pos = pygame.mouse.get_pos()
             shovel_rect.center = mouse_pos
+            # 绘制跟随鼠标的铲子图标（半透明）
+            shovel_icon.set_alpha(shovel_alpha)
+            screen.blit(shovel_icon, shovel_rect)
+            
+            # 右上角显示固定的半透明铲子图标
+            fixed_shovel_icon = create_shovel_icon()
+            fixed_shovel_icon.set_alpha(128)  # 半透明
+            screen.blit(fixed_shovel_icon, fixed_shovel_rect)
         else:
-            # 如果未选中，固定在右上角
+            # 如果未选中，固定在右上角（完全不透明）
             shovel_rect.topright = (SCREEN_WIDTH - 10, 10)
-        
-        # 设置透明度并绘制
-        shovel_icon.set_alpha(shovel_alpha)
-        screen.blit(shovel_icon, shovel_rect)
+            shovel_icon.set_alpha(255)
+            screen.blit(shovel_icon, shovel_rect)
         # =====================================
+        
+        # 3.5 绘制游戏控制按钮
+        # ========== 暂停和退出按钮绘制 ==========
+        # 绘制暂停按钮
+        pause_color = (100, 150, 200) if not game_paused else (200, 150, 100)
+        pygame.draw.rect(screen, pause_color, pause_button_rect)
+        pygame.draw.rect(screen, BLACK, pause_button_rect, 2)
+        pause_text = font.render("暂停" if not game_paused else "继续", True, BLACK)
+        pause_text_rect = pause_text.get_rect(center=pause_button_rect.center)
+        screen.blit(pause_text, pause_text_rect)
+        
+        # 绘制退出按钮
+        pygame.draw.rect(screen, (200, 100, 100), quit_button_rect)
+        pygame.draw.rect(screen, BLACK, quit_button_rect, 2)
+        quit_text = font.render("退出", True, BLACK)
+        quit_text_rect = quit_text.get_rect(center=quit_button_rect.center)
+        screen.blit(quit_text, quit_text_rect)
+        # =====================================
+        
+        # 3.6 显示暂停提示
+        if game_paused:
+            pause_surface = font.render("游戏已暂停 - 按空格键继续", True, (255, 0, 0))
+            pause_rect = pause_surface.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
+            # 绘制半透明背景
+            overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+            overlay.set_alpha(128)
+            overlay.fill((0, 0, 0))
+            screen.blit(overlay, (0, 0))
+            screen.blit(pause_surface, pause_rect)
 
         if game_over:
             over_surface = font.render(

@@ -1,0 +1,2 @@
+pyinstaller --onefile --windowed --icon=game_icon.ico --name="Simplified_PVZ" main.py
+

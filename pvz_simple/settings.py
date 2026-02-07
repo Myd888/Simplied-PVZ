@@ -39,5 +39,5 @@ BULLET_SPEED = 5             # 子弹水平速度（像素/帧）
 BULLET_DAMAGE = 25           # 子弹伤害
 
 # 僵尸生成（刷怪）参数
-ZOMBIE_SPAWN_INTERVAL = 3000  # 生成间隔毫秒（3秒一个）
+ZOMBIE_SPAWN_INTERVAL = 100  # 生成间隔毫秒（2秒一个，值越小生成越快）
 
