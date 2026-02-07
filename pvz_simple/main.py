@@ -27,6 +27,43 @@ from settings import (
 from grid import Grid
 from entities import Plant, Zombie
 
+def draw_health_bar(surface, entity):
+    """
+    在实体头顶绘制血量条
+    entity: Plant 或 Zombie 对象
+    """
+    # 血量条参数
+    bar_width = 50
+    bar_height = 6
+    offset_y = -35  # 在实体头顶的偏移量
+    
+    # 计算血量百分比
+    hp_ratio = max(0, min(1, entity.hp / entity.max_hp))
+    
+    # 血量条位置（实体头顶）
+    bar_x = entity.rect.centerx - bar_width // 2
+    bar_y = entity.rect.top + offset_y
+    
+    # 绘制背景（灰色）
+    bg_rect = pygame.Rect(bar_x, bar_y, bar_width, bar_height)
+    pygame.draw.rect(surface, (100, 100, 100), bg_rect)
+    
+    # 绘制血量（根据血量百分比变色：绿色->黄色->红色）
+    hp_width = int(bar_width * hp_ratio)
+    if hp_ratio > 0.6:
+        hp_color = (0, 255, 0)  # 绿色
+    elif hp_ratio > 0.3:
+        hp_color = (255, 255, 0)  # 黄色
+    else:
+        hp_color = (255, 0, 0)  # 红色
+    
+    if hp_width > 0:
+        hp_rect = pygame.Rect(bar_x, bar_y, hp_width, bar_height)
+        pygame.draw.rect(surface, hp_color, hp_rect)
+    
+    # 绘制边框
+    pygame.draw.rect(surface, (0, 0, 0), bg_rect, 1)
+
 def main():
     pygame.init()
     pygame.display.set_caption("简化版 植物大战僵尸 - Pygame Demo")
@@ -52,7 +89,14 @@ def main():
 
     # 游戏结束标志
     game_over = False
-    font = pygame.font.SysFont(None, 32)
+    # 使用Windows中文字体，避免乱码
+    try:
+        font = pygame.font.Font("C:/Windows/Fonts/msyh.ttc", 24)  # 微软雅黑
+    except:
+        try:
+            font = pygame.font.Font("C:/Windows/Fonts/simhei.ttf", 24)  # 黑体
+        except:
+            font = pygame.font.SysFont("simhei", 24)  # 备用方案
 
     # 主循环
     running = True
@@ -89,8 +133,8 @@ def main():
                 last_zombie_spawn_time = current_time
                 # 随机选择一行
                 spawn_row = random.randint(0, GRID_ROWS - 1)
-                # 僵尸从屏幕右侧外一点点生成
-                spawn_x = SCREEN_WIDTH + 30
+                # 僵尸从屏幕右侧外生成（稍微靠内一点，确保立即可见）
+                spawn_x = SCREEN_WIDTH - 20
                 # 找到这行中任意一个格子，取其 y 中心即可
                 spawn_y = grid.cells[spawn_row][0].centery
                 new_zombie = Zombie((spawn_x, spawn_y))
@@ -113,12 +157,16 @@ def main():
 
             # 2.4 子弹与僵尸碰撞检测
             # groupcollide 返回一个字典：{bullet: [zombies...]}
+            # 使用自定义碰撞函数，确保碰撞检测准确
             collisions = pygame.sprite.groupcollide(
-                bullets, zombies, True, False  # True: 碰撞后删除子弹；False: 先不删僵尸
+                bullets, zombies, True, False,  # True: 碰撞后删除子弹；False: 先不删僵尸
+                pygame.sprite.collide_rect  # 使用矩形碰撞检测
             )
             for bullet, hit_zombies in collisions.items():
                 for zombie in hit_zombies:
                     zombie.take_damage(bullet.damage)
+                    # 碰撞时打印信息（调试用，可选）
+                    # print(f"子弹命中僵尸！僵尸剩余血量: {zombie.hp}")
 
             # 2.5 僵尸与植物碰撞检测
             # 这里不使用 groupcollide，直接遍历简单处理
@@ -133,6 +181,10 @@ def main():
                     if zombie.rect.colliderect(plant.rect):
                         # 僵尸在这一帧对植物造成伤害
                         plant.take_damage(zombie.attack_damage_per_frame)
+                        # 碰撞时打印信息（调试用，可选）
+                        # print(f"僵尸攻击植物！植物剩余血量: {plant.hp}")
+                        # 僵尸碰到植物后停止移动（可选，更符合原游戏）
+                        break
 
             # 2.6 维护 plant_grid：如果植物死亡，则清理对应格子
             for row in range(len(plant_grid)):
@@ -151,6 +203,12 @@ def main():
         plants.draw(screen)
         zombies.draw(screen)
         bullets.draw(screen)
+        
+        # 3.2.1 绘制所有实体的血量条
+        for plant in plants:
+            draw_health_bar(screen, plant)
+        for zombie in zombies:
+            draw_health_bar(screen, zombie)
 
         # 3.3 显示简单文字信息
         text_surface = font.render(

@@ -36,11 +36,14 @@ class Plant(pygame.sprite.Sprite):
         pos: 像素坐标 (x, y)，一般为格子中心位置
         """
         super().__init__()
-        # 简单用一个矩形代表植物
-        self.image = pygame.Surface((50, 60))
+        # 创建带透明度的surface，确保正确渲染
+        self.image = pygame.Surface((50, 60), pygame.SRCALPHA)
         self.image.fill(BLUE)
         # 用一个小黑框表示"脸"
         pygame.draw.rect(self.image, BLACK, (10, 15, 30, 30), 2)
+        # 画两个眼睛
+        pygame.draw.circle(self.image, (255, 255, 0), (20, 25), 4)
+        pygame.draw.circle(self.image, (255, 255, 0), (30, 25), 4)
 
         self.rect = self.image.get_rect(center=pos)
 
@@ -95,9 +98,14 @@ class Zombie(pygame.sprite.Sprite):
         pos: 像素坐标 (x, y)，一般在屏幕右侧某行中心生成
         """
         super().__init__()
-        self.image = pygame.Surface((60, 80))
+        # 创建带透明度的surface，确保正确渲染
+        self.image = pygame.Surface((60, 80), pygame.SRCALPHA)
         self.image.fill(DARK_RED)
+        # 绘制僵尸的简单外观
         pygame.draw.rect(self.image, BLACK, (15, 20, 30, 40), 2)
+        # 画两个眼睛
+        pygame.draw.circle(self.image, (255, 255, 255), (20, 30), 3)
+        pygame.draw.circle(self.image, (255, 255, 255), (40, 30), 3)
 
         self.rect = self.image.get_rect(center=pos)
         self.max_hp = ZOMBIE_MAX_HP
@@ -143,8 +151,11 @@ class Bullet(pygame.sprite.Sprite):
         pos: 像素坐标 (x, y)，一般是植物的右侧中心
         """
         super().__init__()
-        self.image = pygame.Surface((10, 10))
+        # 创建带透明度的surface，确保正确渲染
+        self.image = pygame.Surface((10, 10), pygame.SRCALPHA)
         self.image.fill(YELLOW)
+        # 画一个小圆点，更像子弹
+        pygame.draw.circle(self.image, (255, 200, 0), (5, 5), 5)
 
         self.rect = self.image.get_rect(center=pos)
         self.speed = BULLET_SPEED
